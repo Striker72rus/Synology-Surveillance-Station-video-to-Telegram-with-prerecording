@@ -197,13 +197,10 @@ for i in cam_load:
     if data is None:
         cursor.execute('INSERT INTO CamVideo (cam_id, old_last_video_id, video_offset) VALUES (?, ?, ?)', (i, 0, 0))
         dbConnection.commit()
-        log.debug("INSERT")
     else:
-        log.debug(data)
         if data[0] > 0:
             cursor.execute('UPDATE CamVideo SET old_last_video_id = ?, video_offset = ? WHERE cam_id = ?', (0, 0, i))
             dbConnection.commit()
-            log.debug("UPDATE")
     
 def get_last_id_video(cam_id):
     take_video_id = requests.get(syno_url,
@@ -240,9 +237,10 @@ def webhookcam():
        cursor.execute('SELECT old_last_video_id FROM CamVideo WHERE cam_id = ?', (cam_id,))
        old_last_video_id = cursor.fetchone()[0]
        if last_video_id != old_last_video_id:
-           get_last_video(cam_id, last_video_id, '0')
+           get_last_video(cam_id, last_video_id, 0)
            cursor.execute('UPDATE CamVideo SET old_last_video_id = ?, video_offset = ? WHERE cam_id = ?', (last_video_id, 0, cam_id))
            dbConnection.commit()
+           video_offset = 0
        else:
            cursor.execute('UPDATE CamVideo SET video_offset = video_offset + 10000 WHERE cam_id = ?', (cam_id))
            dbConnection.commit()
