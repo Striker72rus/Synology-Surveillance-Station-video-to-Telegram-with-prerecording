@@ -6,7 +6,7 @@ import subprocess
 import sys
 import logging
 import sqlite3
-#import telegram
+import telegram
 
 py_formatter = logging.Formatter("%(asctime)s - [%(process)s][%(levelname)s] -  %(name)s - (%(filename)s).%(funcName)s(%(lineno)d) - %(message)s")
 log = logging.getLogger(__name__)
@@ -48,14 +48,10 @@ finally:
 #----------------------------------------------------------------------------------------------------------
 dbConfig = '/bot/synoCam.db'
 
-#if not pathlib.Path(dbConfig).is_file():
 dbConnection = sqlite3.connect(dbConfig)
 cursor = dbConnection.cursor()
 cursor.execute('CREATE TABLE IF NOT EXISTS CamVideo (id INTEGER PRIMARY KEY, cam_id INTEGER UNIQUE, old_last_video_id INTEGER,video_offset INTEGER)')
 dbConnection.commit()
-#else:
-#    dbConnection = sqlite3.connect(dbConfig)
-#    cursor = dbConnection.cursor()
 
 
 #validate
@@ -81,9 +77,9 @@ if 'SYNO_PASS' not in os.environ:
 chat_id = os.environ['TG_CHAT_ID']
 token = os.environ['TG_TOKEN']
 
-#tg = telegram.TelegramBot(token)
+tg = telegram.TelegramBot(token)
 
-tg_bot = telebot.TeleBot(token)
+#tg_bot = telebot.TeleBot(token)
 
 syno_ip = os.environ['SYNO_IP']
 syno_url = 'http://' + syno_ip + ':' + os.environ['SYNO_PORT'] + '/webapi/entry.cgi'
@@ -96,40 +92,36 @@ config_file = '/bot/syno_cam_config.json'
 
 # Send Telegram message
 def send_cammessage(message):
-    tg_bot.send_message(chat_id, message)
+    tg.send_message(chat_id, message)
     
 def send_camvideo(videofile, cam_id, debug):
     mycaption = "Camera " + str(cam_load[cam_id]['SynoName'] + " DEBUG_ID: " + debug)
     video = open(videofile, 'rb')
-    tg_bot.send_video(chat_id, video, None, None, None, None, mycaption)
+    tg.send_video(chat_id, video, mycaption)
 
 
 def firstStart():
     # With OTP code
     if 'SYNO_OTP' in os.environ:
-        try:
-            response = requests.get(syno_url,
-                params={'api': 'SYNO.API.Auth', 'version': '7', 'method': 'login',
-                        'account': syno_login, 'passwd': syno_pass, 'otp_code': syno_otp,
-                        'session': 'SurveillanceStation', 'format': 'cookie12'})
-        except requests.exceptions.HTTPError as errh:
-            print ("Http Error:",errh)
-        except requests.exceptions.ConnectionError as errc:
-            print ("Error Connecting:",errc)
-        except requests.exceptions.Timeout as errt:
-            print ("Timeout Error:",errt)
-        except requests.exceptions.RequestException as err:
-            print ("OOps: Something Else",err)
+        params={'api': 'SYNO.API.Auth', 'version': '7', 'method': 'login',
+                            'account': syno_login, 'passwd': syno_pass, 'otp_code': syno_otp,
+                            'session': 'SurveillanceStation', 'format': 'cookie12'}
     # Without OTP code
     else:
-        try:
-            response = requests.get(syno_url,
-                params={'api': 'SYNO.API.Auth', 'version': '7', 'method': 'login',
-                        'account': syno_login, 'passwd': syno_pass,
-                        'session': 'SurveillanceStation', 'format': 'cookie12'})
-        except requests.exceptions.HTTPError as err:
-            log.info('Login or Password is wrong. Please configurate environment')
-            sys.exit()
+        params={'api': 'SYNO.API.Auth', 'version': '7', 'method': 'login',
+                'account': syno_login, 'passwd': syno_pass,
+                'session': 'SurveillanceStation', 'format': 'cookie12'}
+
+    try:
+        response = requests.get(syno_url, params)
+    except requests.exceptions.HTTPError as errh:
+        print ("Http Error:", errh)
+    except requests.exceptions.ConnectionError as errc:
+        print ("Error Connecting:", errc)
+    except requests.exceptions.Timeout as errt:
+        print ("Timeout Error:", errt)
+    except requests.exceptions.RequestException as err:
+        print ("OOps: Something Else", err)
 
     if 'data' not in response.json():
         log.info('Login or Password is wrong. Please configurate environment')
@@ -232,7 +224,7 @@ def webhookcam():
        log.info("New request "+ str(request.json))
        cam_id = request.json['idcam']
        log.info("Received IDCam: "+ cam_id + ', '+ time.strftime("%d.%m.%Y, %H:%M:%S", time.localtime()))
-       time.sleep(5)
+       time.sleep(7)
        last_video_id = get_last_id_video(cam_id)
        cursor.execute('SELECT old_last_video_id FROM CamVideo WHERE cam_id = ?', (cam_id,))
        old_last_video_id = cursor.fetchone()[0]
@@ -253,3 +245,24 @@ def webhookcam():
        return 'success', 200
     else:
        abort(400)
+
+
+
+
+@tg.tg_bot.message_handler(commands=['start'])
+def start_message(message):
+    tg.send_message(message.chat.id,"Привет ✌️ ")
+
+@tg.tg_bot.message_handler(commands=['config'])
+def getConfig(message):
+    cam_conf_text = "Cameras config:\n"
+    for i in cam_load:
+        if 'CamId' in cam_load[i]:
+            cam_conf_text += ('CamId: ' + str(cam_load[i]['CamId'])
+                    + ' IP: ' + cam_load[i]['IP']
+                    + ' SynoName: ' + cam_load[i]['SynoName']
+                    + ' Model: ' + cam_load[i]['Model']
+                    + ' Vendor: ' + cam_load[i]['Vendor'] + '\n')
+    send_cammessage(cam_conf_text)
+
+tg.infinity_polling()

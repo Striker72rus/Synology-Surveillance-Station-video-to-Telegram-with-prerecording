@@ -24,4 +24,4 @@ WORKDIR /app
 COPY ["Python code/main.py", "/app/"]
 COPY ["Python code/telegram.py", "/app/"]
 
-CMD ["gunicorn", "--bind", ":7878", "--workers", "4", "main:app"]
+CMD ["gunicorn", "--bind", ":7878", "--workers", "1", "main:app"]
