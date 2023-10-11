@@ -5,8 +5,10 @@ import json
 import subprocess
 import sys
 import logging
+import sqlite3
+#import telegram
 
-py_formatter = logging.Formatter("%(asctime)s - [%(levelname)s] -  %(name)s - (%(filename)s).%(funcName)s(%(lineno)d) - %(message)s")
+py_formatter = logging.Formatter("%(asctime)s - [%(process)s][%(levelname)s] -  %(name)s - (%(filename)s).%(funcName)s(%(lineno)d) - %(message)s")
 log = logging.getLogger(__name__)
 sh = logging.StreamHandler(sys.stdout)
 sh.setFormatter(py_formatter)
@@ -44,6 +46,17 @@ except ModuleNotFoundError:
 finally:
     import requests
 #----------------------------------------------------------------------------------------------------------
+dbConfig = '/bot/synoCam.db'
+
+#if not pathlib.Path(dbConfig).is_file():
+dbConnection = sqlite3.connect(dbConfig)
+cursor = dbConnection.cursor()
+cursor.execute('CREATE TABLE IF NOT EXISTS CamVideo (id INTEGER PRIMARY KEY, cam_id INTEGER UNIQUE, old_last_video_id INTEGER,video_offset INTEGER)')
+dbConnection.commit()
+#else:
+#    dbConnection = sqlite3.connect(dbConfig)
+#    cursor = dbConnection.cursor()
+
 
 #validate
 if 'TG_CHAT_ID' not in os.environ:
@@ -68,6 +81,8 @@ if 'SYNO_PASS' not in os.environ:
 chat_id = os.environ['TG_CHAT_ID']
 token = os.environ['TG_TOKEN']
 
+#tg = telegram.TelegramBot(token)
+
 tg_bot = telebot.TeleBot(token)
 
 syno_ip = os.environ['SYNO_IP']
@@ -78,14 +93,13 @@ if 'SYNO_OTP' in os.environ:
     syno_otp = os.environ['SYNO_OTP']
 
 config_file = '/bot/syno_cam_config.json'
-arr_cam_move = {}
 
 # Send Telegram message
 def send_cammessage(message):
     tg_bot.send_message(chat_id, message)
     
-def send_camvideo(videofile, cam_id):
-    mycaption = "Camera " + str(cam_load[cam_id]['SynoName'])
+def send_camvideo(videofile, cam_id, last_video_id):
+    mycaption = "Camera " + str(cam_load[cam_id]['SynoName'] + " DEBUG_ID: " + str(last_video_id))
     video = open(videofile, 'rb')
     tg_bot.send_video(chat_id, video, None, None, None, None, mycaption)
 
@@ -178,20 +192,30 @@ with open(config_file) as f:
 syno_sid = cam_load['SynologyAuthSid']
 
 for i in cam_load:
-   arr_cam_move[i] = {'old_last_video_id': '0', 'video_offset': '0'}
-del arr_cam_move['SynologyAuthSid']
-
+    cursor.execute('SELECT old_last_video_id FROM CamVideo WHERE cam_id = ?', (i,))
+    data=cursor.fetchone()
+    if data is None:
+        cursor.execute('INSERT INTO CamVideo (cam_id, old_last_video_id, video_offset) VALUES (?, ?, ?)', (i, 0, 0))
+        dbConnection.commit()
+        log.debug("INSERT")
+    else:
+        log.debug(data)
+        if data[0] > 0:
+            cursor.execute('UPDATE CamVideo SET old_last_video_id = ?, video_offset = ? WHERE cam_id = ?', (0, 0, i))
+            dbConnection.commit()
+            log.debug("UPDATE")
+    
 def get_last_id_video(cam_id):
     take_video_id = requests.get(syno_url,
         params={'version': '6', 'cameraIds': cam_id, 'api': 'SYNO.SurveillanceStation.Recording',
                 'toTime': '0', 'offset': '0', 'limit': '1', 'fromTime': '0', 'method': 'List', '_sid': syno_sid}).json()['data']['recordings'][0]['id']
     return take_video_id
 
-def get_last_video(video_id, offset):
+def get_last_video(cam_id, video_id, offset):
     download = requests.get(syno_url + '/temp.mp4',
         params={'id': video_id, 'version': '6', 'mountId': '0', 'api': 'SYNO.SurveillanceStation.Recording',
                 'method': 'Download', 'offsetTimeMs': offset, 'playTimeMs': '10000','_sid': syno_sid}, allow_redirects=True)
-    open('/bot/temp.mp4', 'wb').write(download.content)
+    open('/bot/'+str(cam_id)+'_'+str(video_id)+'.mp4', 'wb').write(download.content)
     return 
 
 def get_alarm_camera_state(cam_id):
@@ -207,23 +231,28 @@ log.info('Module start. Wait hooks.')
 
 @app.route('/webhookcam', methods=['POST'])
 def webhookcam():
-    global arr_cam_move
     if request.method == 'POST':
        log.info("New request "+ str(request.json))
        cam_id = request.json['idcam']
        log.info("Received IDCam: "+ cam_id + ', '+ time.strftime("%d.%m.%Y, %H:%M:%S", time.localtime()))
        time.sleep(5)
        last_video_id = get_last_id_video(cam_id)
-       if last_video_id != arr_cam_move[cam_id]['old_last_video_id']:
-           get_last_video(last_video_id, '0')
-           mycaption = "Camera " + str(cam_load[cam_id]['SynoName'])
-           send_cammessage(mycaption)
-           arr_cam_move[cam_id]['old_last_video_id'] = last_video_id
-           arr_cam_move[cam_id]['video_offset'] = 0
+       cursor.execute('SELECT old_last_video_id FROM CamVideo WHERE cam_id = ?', (cam_id,))
+       old_last_video_id = cursor.fetchone()[0]
+       if last_video_id != old_last_video_id:
+           get_last_video(cam_id, last_video_id, '0')
+           cursor.execute('UPDATE CamVideo SET old_last_video_id = ?, video_offset = ? WHERE cam_id = ?', (last_video_id, 0, cam_id))
+           dbConnection.commit()
        else:
-           arr_cam_move[cam_id]['video_offset'] += 10000
-           get_last_video(last_video_id, str(arr_cam_move[cam_id]['video_offset']))
-       send_camvideo('/bot/temp.mp4',cam_id)
+           cursor.execute('UPDATE CamVideo SET video_offset = video_offset + 10000 WHERE cam_id = ?', (cam_id))
+           dbConnection.commit()
+           cursor.execute('SELECT video_offset FROM CamVideo WHERE cam_id = ?', (cam_id,))
+           video_offset = cursor.fetchone()[0]
+
+           get_last_video(cam_id, last_video_id, str(video_offset))
+       send_camvideo('/bot/'+str(cam_id) +'_'+str(last_video_id)+'.mp4',cam_id, last_video_id)
+       os.remove('/bot/'+str(cam_id) +'_'+str(last_video_id)+'.mp4')
+
        return 'success', 200
     else:
        abort(400)
