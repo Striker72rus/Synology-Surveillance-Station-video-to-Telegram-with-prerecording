@@ -98,8 +98,8 @@ config_file = '/bot/syno_cam_config.json'
 def send_cammessage(message):
     tg_bot.send_message(chat_id, message)
     
-def send_camvideo(videofile, cam_id, last_video_id):
-    mycaption = "Camera " + str(cam_load[cam_id]['SynoName'] + " DEBUG_ID: " + str(last_video_id))
+def send_camvideo(videofile, cam_id, debug):
+    mycaption = "Camera " + str(cam_load[cam_id]['SynoName'] + " DEBUG_ID: " + debug)
     video = open(videofile, 'rb')
     tg_bot.send_video(chat_id, video, None, None, None, None, mycaption)
 
@@ -249,8 +249,8 @@ def webhookcam():
            cursor.execute('SELECT video_offset FROM CamVideo WHERE cam_id = ?', (cam_id,))
            video_offset = cursor.fetchone()[0]
 
-           get_last_video(cam_id, last_video_id, str(video_offset))
-       send_camvideo('/bot/'+str(cam_id) +'_'+str(last_video_id)+'.mp4',cam_id, last_video_id)
+           get_last_video(cam_id, last_video_id, video_offset)
+       send_camvideo('/bot/'+str(cam_id) +'_'+str(last_video_id)+'.mp4',cam_id, str(last_video_id)+' offset: ' + str(video_offset))
        os.remove('/bot/'+str(cam_id) +'_'+str(last_video_id)+'.mp4')
 
        return 'success', 200
