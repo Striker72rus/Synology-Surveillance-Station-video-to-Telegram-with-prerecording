@@ -93,21 +93,50 @@ def send_camvideo(videofile, cam_id):
 def firstStart():
     # With OTP code
     if 'SYNO_OTP' in os.environ:
-        sid = requests.get(syno_url,
-            params={'api': 'SYNO.API.Auth', 'version': '7', 'method': 'login',
-                    'account': syno_login, 'passwd': syno_pass, 'otp_code': syno_otp,
-                    'session': 'SurveillanceStation', 'format': 'cookie12'}).json()['data']['sid']
+        try:
+            response = requests.get(syno_url,
+                params={'api': 'SYNO.API.Auth', 'version': '7', 'method': 'login',
+                        'account': syno_login, 'passwd': syno_pass, 'otp_code': syno_otp,
+                        'session': 'SurveillanceStation', 'format': 'cookie12'})
+        except requests.exceptions.HTTPError as errh:
+            print ("Http Error:",errh)
+        except requests.exceptions.ConnectionError as errc:
+            print ("Error Connecting:",errc)
+        except requests.exceptions.Timeout as errt:
+            print ("Timeout Error:",errt)
+        except requests.exceptions.RequestException as err:
+            print ("OOps: Something Else",err)
     # Without OTP code
     else:
-        sid = requests.get(syno_url,
-            params={'api': 'SYNO.API.Auth', 'version': '7', 'method': 'login',
-                    'account': syno_login, 'passwd': syno_pass,
-                    'session': 'SurveillanceStation', 'format': 'cookie12'}).json()['data']['sid']
-    log.info(sid)            
+        try:
+            response = requests.get(syno_url,
+                params={'api': 'SYNO.API.Auth', 'version': '7', 'method': 'login',
+                        'account': syno_login, 'passwd': syno_pass,
+                        'session': 'SurveillanceStation', 'format': 'cookie12'})
+        except requests.exceptions.HTTPError as err:
+            log.info('Login or Password is wrong. Please configurate environment')
+            sys.exit()
+
+    if 'data' not in response.json():
+        log.info('Login or Password is wrong. Please configurate environment')
+        sys.exit()
+
+    sid = response.json()['data']['sid']
+
+    log.info(sid)          
+    if 'sid' not in locals():
+        log.info('Login or Password is wrong. Please configurate environment')
+        sys.exit()
+
     # Cameras config
-    cameras = requests.get(syno_url,
-        params={'api': 'SYNO.SurveillanceStation.Camera',
-                '_sid': sid, 'version': '9', 'method': 'List'}).json()
+   
+    try:
+        cameras = requests.get(syno_url,
+            params={'api': 'SYNO.SurveillanceStation.Camera',
+                    '_sid': sid, 'version': '9', 'method': 'List'}).json()
+    except requests.exceptions.HTTPError as err:
+        raise SystemExit(err)
+    
     data = {}
     cam_conf_text = ""
     for i in range(len(cameras['data']['cameras'])):
