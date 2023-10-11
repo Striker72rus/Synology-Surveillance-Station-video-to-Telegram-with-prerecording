@@ -237,17 +237,16 @@ def webhookcam():
        cursor.execute('SELECT old_last_video_id FROM CamVideo WHERE cam_id = ?', (cam_id,))
        old_last_video_id = cursor.fetchone()[0]
        if last_video_id != old_last_video_id:
-           get_last_video(cam_id, last_video_id, 0)
-           cursor.execute('UPDATE CamVideo SET old_last_video_id = ?, video_offset = ? WHERE cam_id = ?', (last_video_id, 0, cam_id))
-           dbConnection.commit()
            video_offset = 0
+           cursor.execute('UPDATE CamVideo SET old_last_video_id = ?, video_offset = ? WHERE cam_id = ?', (last_video_id, video_offset, cam_id))
+           dbConnection.commit()
        else:
            cursor.execute('UPDATE CamVideo SET video_offset = video_offset + 10000 WHERE cam_id = ?', (cam_id))
            dbConnection.commit()
            cursor.execute('SELECT video_offset FROM CamVideo WHERE cam_id = ?', (cam_id,))
            video_offset = cursor.fetchone()[0]
 
-           get_last_video(cam_id, last_video_id, video_offset)
+       get_last_video(cam_id, last_video_id, video_offset)
        send_camvideo('/bot/'+str(cam_id) +'_'+str(last_video_id)+'.mp4',cam_id, str(last_video_id)+' offset: ' + str(video_offset))
        os.remove('/bot/'+str(cam_id) +'_'+str(last_video_id)+'.mp4')
 
