@@ -92,7 +92,7 @@ def send_camvideo(videofile, cam_id):
 
 def firstStart():
     # With OTP code
-    if 'syno_otp' in locals():
+    if 'SYNO_OTP' in os.environ:
         sid = requests.get(syno_url,
             params={'api': 'SYNO.API.Auth', 'version': '7', 'method': 'login',
                     'account': syno_login, 'passwd': syno_pass, 'otp_code': syno_otp,
@@ -124,13 +124,13 @@ def firstStart():
     log.info(cam_conf_text)
     data['SynologyAuthSid'] = sid
 
-    with open(config_file, "w") as f:
-        json.dump(data, f)
-    log.info("Config saved successfully.")
-    # Send Telegram Cameras config
-    mycaption = "Cameras config:\n" + cam_conf_text
-    send_cammessage(mycaption)
-
+    if not pathlib.Path(config_file).is_file():
+        with open(config_file, "w") as f:
+            json.dump(data, f)
+        log.info("Config saved successfully.")
+        # Send Telegram Cameras config
+        mycaption = "Cameras config:\n" + cam_conf_text
+        send_cammessage(mycaption)
 
 if not pathlib.Path(config_file).is_file():
     log.info('Not Found Syno config, need create')
@@ -174,10 +174,13 @@ def get_alarm_camera_state(cam_id):
 
 app = Flask(__name__)
 
+log.info('Module start. Wait hooks.')
+
 @app.route('/webhookcam', methods=['POST'])
 def webhookcam():
     global arr_cam_move
     if request.method == 'POST':
+       log.info("New request "+ str(request.json))
        cam_id = request.json['idcam']
        log.info("Received IDCam: "+ cam_id + ', '+ time.strftime("%d.%m.%Y, %H:%M:%S", time.localtime()))
        time.sleep(5)
@@ -195,4 +198,3 @@ def webhookcam():
        return 'success', 200
     else:
        abort(400)
-       
