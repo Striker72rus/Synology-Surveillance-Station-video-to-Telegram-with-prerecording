@@ -12,6 +12,7 @@ RUN pip3 install --upgrade pip setuptools-rust wheel
 RUN pip3 install -r requirements.txt && rm -rf /root/.cache /root/.cargo
 
 EXPOSE 7878:7878
+#ENV TZ="Europe/Moscow"
 ENV TG_CHAT_ID=123456
 ENV TG_TOKEN='1234567890:AAAAAAbbbbbbCCCC1234567890abcdefgh'
 ENV SYNO_IP='192.168.1.1'
