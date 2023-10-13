@@ -48,6 +48,11 @@ if 'SYNO_PASS' not in os.environ:
     log.info('SYNO_PASS does not exist. Please configurate environment')
     sys.exit()
 
+if 'START_OFFSET' in os.environ:
+    start_offset = os.environ['START_OFFSET']
+else:
+    start_offset = -10
+
 chat_id = os.environ['TG_CHAT_ID']
 token = os.environ['TG_TOKEN']
 
@@ -193,10 +198,10 @@ def get_last_video(cam_id, video_id, offset):
 
 def get_video_by_time(cam_id, start_time, end_time = None):
     
-    end_time = start_time + 10
-    start_time -= 5
+    end_time = int(start_time + 10 + int(start_offset)/2)
+    start_time += int(start_offset)
 
-    params={'camId': cam_id, 'version': '6', 'fileName': 'video', 'fromTime': start_time,'toTime' : end_time,
+    params={'camId': cam_id, 'version': '6', 'fileName': 'video', 'fromTime': start_time, 'toTime' : end_time,
                 'api': 'SYNO.SurveillanceStation.Recording', 'method': 'RangeExport', '_sid': syno_sid}
     log.debug('Get video with params = ' + str(params))
     result = requests.get(syno_url,params, allow_redirects=True)
@@ -218,9 +223,11 @@ def get_video_by_time(cam_id, start_time, end_time = None):
     
 
 def get_alarm_camera_state(cam_id):
-    take_alarm = requests.get(syno_url,
+    result = requests.get(syno_url,
         params={'version': '1', 'id_list': cam_id, 'api': 'SYNO.SurveillanceStation.Camera.Status',
-                    'method': 'OneTime', '_sid': syno_sid}).json()['data']['CamStatus']
+                    'method': 'OneTime', '_sid': syno_sid})
+    log.debug(str(result.json()))
+    take_alarm = result.json()['data']['CamStatus']
     alarm_state = take_alarm.replace("[", "").replace("]", "").split()[7]
     return 1 if alarm_state == '1' else 0
 
@@ -234,6 +241,7 @@ def webhookcam():
         log.info("New request "+ str(request.json))
         cam_id = request.json['idcam']
 
+        get_alarm_camera_state(cam_id)
         log.info("Received IDCam: "+ cam_id + ', ' + str(datetime.datetime.now()))
         if 'alwaysRecord' in request.json:
             time.sleep(5)
