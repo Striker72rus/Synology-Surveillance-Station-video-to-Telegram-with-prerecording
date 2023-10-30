@@ -62,6 +62,7 @@
 | SYNO_LOGIN | user | Имя пользователя Вашего Synology
 | SYNO_PASS | mypass| Пароль пользователя Вашего Synology
 | SYNO_OTP | 079444| ОТР код двухфакторной авторизации. Если этод метод не используется, то не прописываем
+| DEBUG | true| Необязательный параметр, выводит в лог больше информации.
 
 Сеть оставляем bridge.
 
@@ -103,7 +104,7 @@ services:
       - "SYNO_OTP=123" #ОТР код двухфакторной авторизации, если используете. Если нет - удалить.
     volumes:
       - /docker/bot/:/bot #/docker/bot/ - меняем на свой путь, где будет хранится конфиг с камерами
-    image: striker72rus/ss_to_tg_video:latest
+    image: striker72rus/ss_to_tg_video:test
 ```
 
 <a id="A3"></a>
@@ -118,7 +119,7 @@ docker run \
       -e SYNO_PORT='5000' \
       -e SYNO_LOGIN='login' \
       -e SYNO_PASS='password'  \
-      --name ssToTgVideo ss_to_tg_video:latest
+      --name ssToTgVideo ss_to_tg_video:test
 ```
 
 <a id="A5"></a>
@@ -133,9 +134,9 @@ docker run \
 
 Пример
 ```bash
-      docker build -t ss_to_tg_video:v1 . && \
-      docker tag ss_to_tg_video:v1 striker72rus/ss_to_tg_video:v1 && \
-      docker push striker72rus/ss_to_tg_video:v1
+      docker build -t ss_to_tg_video:test . && \
+      docker tag ss_to_tg_video:test striker72rus/ss_to_tg_video:test && \
+      docker push striker72rus/ss_to_tg_video:test
 ```
 
 <a id="A6"></a>
