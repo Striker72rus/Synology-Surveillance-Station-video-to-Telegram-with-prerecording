@@ -297,4 +297,4 @@ def getConfig(message):
                     + ' Vendor: ' + cam_load[i]['Vendor'] + '\n')
     send_cammessage(cam_conf_text)
 
-tg.infinity_polling()
+#tg.infinity_polling()
